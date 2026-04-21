@@ -1,0 +1,17 @@
+pyproject.toml
+setup.py
+src/shadowloop/__init__.py
+src/shadowloop/builder.py
+src/shadowloop/config.py
+src/shadowloop/exporters.py
+src/shadowloop/ingest.py
+src/shadowloop/planner.py
+src/shadowloop/segmenter.py
+src/shadowloop.egg-info/PKG-INFO
+src/shadowloop.egg-info/SOURCES.txt
+src/shadowloop.egg-info/dependency_links.txt
+src/shadowloop.egg-info/requires.txt
+src/shadowloop.egg-info/top_level.txt
+tests/test_config.py
+tests/test_planner.py
+tests/test_segmenter.py
