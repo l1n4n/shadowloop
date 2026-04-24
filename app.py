@@ -14,6 +14,17 @@ from shadowloop.builder import build_audio
 from shadowloop.exporters import export_mp3
 
 
+def generate_transcript_file(segments: List[Segment]) -> str | None:
+    """Write segments to a temp .txt file for download."""
+    if not segments:
+        return None
+    path = os.path.join(tempfile.gettempdir(), "shadowloop_transcript.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        for seg in segments:
+            f.write(f"[{seg.start_ms / 1000:.1f}s - {seg.end_ms / 1000:.1f}s] {seg.text}\n")
+    return path
+
+
 def segments_to_html(segments: List[Segment]) -> str:
     """Render segments as an HTML table."""
     if not segments:
@@ -38,7 +49,7 @@ def segments_to_html(segments: List[Segment]) -> str:
 def on_transcribe(audio_file):
     """Transcribe audio file and segment into sentences."""
     if audio_file is None:
-        return None, None, "<p>Please upload an audio file.</p>", "Please upload an audio file."
+        return None, None, "<p>Please upload an audio file.</p>", "Please upload an audio file.", None
     try:
         audio = load_audio(audio_file)
         asr_audio = prepare_for_transcription(audio)
@@ -48,37 +59,36 @@ def on_transcribe(audio_file):
         finally:
             os.unlink(wav_path)
         if not segments:
-            return audio, None, "<p>No speech detected.</p>", "No speech detected in the audio."
+            return audio, None, "<p>No speech detected.</p>", "No speech detected in the audio.", None
         html = segments_to_html(segments)
-        return audio, segments, html, f"Found {len(segments)} sentences. Review and edit below."
+        transcript_path = generate_transcript_file(segments)
+        return audio, segments, html, f"Found {len(segments)} sentences. Review and edit below.", transcript_path
     except Exception as e:
-        return None, None, f"<p>Error: {e}</p>", f"Error: {e}"
+        return None, None, f"<p>Error: {e}</p>", f"Error: {e}", None
 
 
 def on_upload_transcript(audio_state, transcript_file):
     """Load segments from uploaded transcript file."""
     if audio_state is None:
-        return None, "<p>Please upload audio first.</p>", "Please upload audio first."
+        return None, "<p>Please upload audio first.</p>", "Please upload audio first.", None
     if transcript_file is None:
-        return None, "<p>Please upload a transcript file.</p>", "Please upload a transcript file."
+        return None, "<p>Please upload a transcript file.</p>", "Please upload a transcript file.", None
     try:
-        # Read transcript text from uploaded file
         with open(transcript_file, "r", encoding="utf-8") as f:
             text = f.read()
 
-        # Get audio duration
         audio = load_audio(audio_state)
         audio_duration_ms = len(audio)
 
-        # Create segments from transcript
         segments = segments_from_transcript(text, audio_duration_ms)
         if not segments:
-            return None, "<p>No text found in transcript.</p>", "No text found in transcript."
+            return None, "<p>No text found in transcript.</p>", "No text found in transcript.", None
 
         html = segments_to_html(segments)
-        return segments, html, f"Loaded {len(segments)} segments from transcript."
+        transcript_path = generate_transcript_file(segments)
+        return segments, html, f"Loaded {len(segments)} segments from transcript.", transcript_path
     except Exception as e:
-        return None, f"<p>Error: {e}</p>", f"Error: {e}"
+        return None, f"<p>Error: {e}</p>", f"Error: {e}", None
 
 
 def on_merge(segments_state, selected_ids_text):
@@ -170,8 +180,12 @@ def on_build(audio_state, segments_state, repeat_count, pause_repeats, pause_sen
 
 def create_app():
     """Create and return the Gradio app."""
-    with gr.Blocks(title="ShadowLoop", theme=gr.themes.Soft()) as app:
-        gr.Markdown("# ShadowLoop\nUpload audio, review sentences, build practice loops.")
+    with gr.Blocks(title="ShadowLoop") as app:
+        gr.Markdown(
+            "# ShadowLoop\n"
+            "Turn any audio into a shadowing practice loop.\n\n"
+            "**How it works:** Upload audio → review the detected sentences → build a practice file that repeats each sentence with pauses."
+        )
 
         audio_state = gr.State(value=None)
         segments_state = gr.State(value=None)
@@ -179,6 +193,7 @@ def create_app():
         # Phase 1: Upload
         with gr.Group():
             gr.Markdown("### 1. Upload Audio")
+            gr.Markdown("Upload an audio file (mp3, wav, m4a, etc.) and let Whisper transcribe it into sentences. Or upload your own transcript instead.")
             audio_input = gr.Audio(label="Audio file", type="filepath")
             transcribe_btn = gr.Button("Transcribe", variant="primary")
 
@@ -191,22 +206,26 @@ def create_app():
         # Phase 2: Review
         with gr.Group():
             gr.Markdown("### 2. Review Sentences")
+            gr.Markdown("Check the detected sentences below. You can merge short segments, split long ones, or delete unwanted ones.")
             segments_html = gr.HTML(value="<p>No segments yet.</p>")
-            with gr.Row():
-                with gr.Column():
-                    merge_ids = gr.Textbox(label="Merge IDs (e.g. '0,1')", placeholder="0,1")
-                    merge_btn = gr.Button("Merge")
-                with gr.Column():
-                    split_id = gr.Number(label="Split segment ID", precision=0)
-                    split_time = gr.Number(label="Split at (seconds from segment start)")
-                    split_btn = gr.Button("Split")
-                with gr.Column():
-                    delete_id = gr.Number(label="Delete segment ID", precision=0)
-                    delete_btn = gr.Button("Delete")
+            transcript_download = gr.File(label="Download Transcript", interactive=False)
+            with gr.Accordion("Edit Segments", open=False):
+                with gr.Row():
+                    with gr.Column():
+                        merge_ids = gr.Textbox(label="Merge IDs (e.g. '0,1')", placeholder="0,1")
+                        merge_btn = gr.Button("Merge")
+                    with gr.Column():
+                        split_id = gr.Number(label="Split segment ID", precision=0)
+                        split_time = gr.Number(label="Split at (seconds from segment start)")
+                        split_btn = gr.Button("Split")
+                    with gr.Column():
+                        delete_id = gr.Number(label="Delete segment ID", precision=0)
+                        delete_btn = gr.Button("Delete")
 
         # Phase 3: Build
         with gr.Group():
             gr.Markdown("### 3. Configure & Build")
+            gr.Markdown("Set how many times each sentence repeats and how long the pauses are, then build your practice audio.")
             with gr.Row():
                 repeat_count = gr.Slider(1, 20, value=8, step=1, label="Repeat count")
                 pause_repeats = gr.Slider(0, 10, value=2.5, step=0.5, label="Pause between repeats (s)")
@@ -224,12 +243,12 @@ def create_app():
         transcribe_btn.click(
             on_transcribe,
             inputs=[audio_input],
-            outputs=[audio_state, segments_state, segments_html, status_text],
+            outputs=[audio_state, segments_state, segments_html, status_text, transcript_download],
         )
         transcript_btn.click(
             on_upload_transcript,
             inputs=[audio_input, transcript_input],
-            outputs=[segments_state, segments_html, status_text],
+            outputs=[segments_state, segments_html, status_text, transcript_download],
         )
         merge_btn.click(
             on_merge,
@@ -263,4 +282,4 @@ def create_app():
 if __name__ == "__main__":
     check_ffmpeg()
     app = create_app()
-    app.launch(server_name="0.0.0.0")
+    app.launch(server_name="0.0.0.0", theme=gr.themes.Soft())
