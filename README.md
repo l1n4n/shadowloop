@@ -1,3 +1,15 @@
+---
+title: ShadowLoop
+emoji: 🔁
+colorFrom: gray
+colorTo: green
+sdk: gradio
+sdk_version: 6.13.0
+app_file: app.py
+python_version: "3.11"
+pinned: false
+---
+
 # ShadowLoop
 
 Local sentence-level repetition trainer for English shadowing practice. Upload audio, review sentence segments, configure repeats and pauses, download a practice MP3.

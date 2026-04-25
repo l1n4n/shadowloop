@@ -1,8 +1,12 @@
 """ShadowLoop - Gradio UI for shadowing practice."""
 
 import os
+import sys
 import tempfile
 from typing import List
+
+# Ensure src/ is on the path for HF Spaces deployment
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import gradio as gr
 
