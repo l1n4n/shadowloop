@@ -3,8 +3,6 @@
 from types import SimpleNamespace
 from typing import List, Optional, Tuple
 
-import whisper
-
 from shadowloop.config import Segment
 
 
@@ -15,6 +13,8 @@ def transcribe(audio_path: str, model_size: str = "base") -> list:
     Returns list of segment objects with .words attribute,
     where each word has .word, .start, .end attributes.
     """
+    import whisper
+
     model = whisper.load_model(model_size)
     result = model.transcribe(audio_path, word_timestamps=True)
 
