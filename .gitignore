@@ -14,3 +14,8 @@ __pycache__/
 *.pem
 *.txt
 
+
+# build artifacts
+*.egg-info/
+build/
+dist/
